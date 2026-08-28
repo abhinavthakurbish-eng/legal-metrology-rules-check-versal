@@ -1,4 +1,7 @@
 Flask
-requests
+opencv-python-headless
+pytesseract
 Pillow
 reportlab
+numpy
+gunicorn

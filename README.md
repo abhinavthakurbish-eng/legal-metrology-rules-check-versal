@@ -1,97 +1,163 @@
-# Legal Metrology Label Compliance Checker — Vercel Edition
+# Legal Metrology Label Compliance Checker
 
-This is a **stateless, Vercel-compatible** version of the compliance checker.
-It exists because Vercel's serverless Python runtime cannot install
-system-level binaries (like Tesseract OCR) and has no persistent filesystem —
-so this version replaces local Tesseract with a **free cloud OCR API**
-(OCR.space) and removes anything that needed a database or saved files.
+Prototype system for **PS ID 26034 (Ministry of Consumer Affairs)** — automated
+checking of packaged-commodity labels against the **Legal Metrology (Packaged
+Commodities) Rules, 2011**, using OCR + a configurable, research-informed rule
+engine.
 
-**If you can use Render/Railway/Fly.io/Cloud Run instead, use the full
-Docker-based version** (in the other project folder) — it has scan history,
-a dashboard, CSV audit export, and Hindi OCR support, none of which are
-possible in a true serverless environment without a lot of extra
-infrastructure (external DB, external file storage). This Vercel edition is
-a deliberately trimmed-down fallback for when only Vercel is available.
+Upload one or more photos of a product's different sides (front, back,
+ingredients panel, MRP sticker) and the system:
 
-## What's different here vs. the full version
-
-| Feature | Full (Render/Docker) version | This Vercel version |
-|---|---|---|
-| OCR engine | Local Tesseract (unlimited, free) | Cloud API (OCR.space, free tier is rate-limited) |
-| Scan history / dashboard | Yes (SQLite) | **No** — each scan is one-off |
-| CSV audit export | Yes | **No** |
-| Hindi OCR | Yes | Not enabled by default (English only) |
-| PDF download | Separate route, reads from disk | Embedded directly as a data-URI in the same response |
-| Annotated photos | Saved to disk | Embedded directly as base64 in the HTML |
-
-The rule engine (`rules_engine/engine.py` + `rules.json`) — including the
-exact-then-fuzzy OCR-noise-tolerant matching — is **the same code**, reused
-unchanged, since it just operates on a plain Python dict and doesn't care
-where the OCR text came from.
-
-## Project structure (all in `api/`, deliberately flat)
-
-```
-api/index.py          Flask app + all routes (entry point)
-api/engine.py          Rule matching (exact-then-fuzzy), same logic as the full version
-api/rules.json          Declarative Legal Metrology rules
-api/ocr_cloud.py        OCR.space API wrapper
-api/annotate_memory.py  Draws pass/fail boxes on photos, in-memory (no disk)
-api/pdf_builder.py      Builds the PDF report in-memory (no disk)
-vercel.json             Deployment config
-requirements.txt        Python dependencies
-```
-
-Everything lives inside `api/` on purpose (not split across top-level
-folders) - Vercel's Python builder is most reliable when all the code a
-function needs is co-located with it, so this avoids any cross-directory
-import/bundling issues.
+1. Extracts text from every photo (OCR, with automatic orientation
+   correction, adaptive preprocessing for glossy/busy packaging, and a hard
+   timeout so a single bad photo can't stall the whole scan)
+2. Combines the text across all photos and pulls out mandatory declarations
+   (MRP, net quantity, mfg date, manufacturer address, etc.) — using an
+   **exact match first, fuzzy match as fallback** strategy that tolerates
+   minor OCR misreads (see "Research basis" below)
+3. Checks each declaration against `rules_engine/rules.json`
+4. Shows a plain-language compliance report with annotated photos, and a
+   downloadable PDF formatted like a field inspection report
 
 ## Setup
 
-### 1. Get a free OCR.space API key (2 minutes, no credit card)
-Go to **https://ocr.space/OCRAPI**, sign up, and copy the API key emailed to
-you. Without this, the app falls back to OCR.space's public `helloworld` demo
-key, which is heavily rate-limited (shared across everyone using it) and will
-likely fail or get throttled under real use.
-
-### 2. Deploy to Vercel
 ```bash
-npm install -g vercel     # if you don't have the Vercel CLI
-cd legal-metrology-checker-vercel
-vercel
-```
-Or connect this folder as a GitHub repo through the Vercel dashboard
-(**New Project → Import**) — Vercel will auto-detect `vercel.json`.
+# 1. System dependency: Tesseract OCR
+sudo apt-get install tesseract-ocr        # Debian/Ubuntu
+# brew install tesseract                  # macOS
 
-### 3. Add your API key as an environment variable
-In the Vercel project dashboard: **Settings → Environment Variables**
-```
-OCR_SPACE_API_KEY = <your key from step 1>
-```
-Redeploy after adding it (env var changes need a redeploy to take effect).
-
-### 4. Run locally (optional, for testing before deploying)
-```bash
+# 2. Python dependencies
 pip install -r requirements.txt
-export OCR_SPACE_API_KEY=your_key_here     # Windows: set OCR_SPACE_API_KEY=your_key_here
-python3 api/index.py
+
+# 3. Run
+python3 app.py
 ```
-Open **http://localhost:5000**
 
-## Limits to know about
+Then open **http://localhost:5000**.
 
-- **OCR.space free tier**: ~1MB per image (this app auto-compresses images to
-  fit), and a request-rate limit — fine for demos/hackathon judging, not for
-  heavy production traffic.
-- **Vercel Hobby plan function duration**: configured for up to 60s in
-  `vercel.json`, but your actual plan may cap this lower — if scans time out
-  with 3+ large photos, try fewer/smaller photos per scan.
-- **No persistence**: refreshing the report page re-submits nothing — there's
-  no "past scans" list. If you need that, use the full Docker/Render version.
+## Deploying online (Render.com — recommended)
+
+**Do not deploy this to Vercel.** Vercel's Python runtime is serverless and
+stateless: it has no system-level Tesseract binary, and SQLite / uploaded
+photos need a writable, persistent-during-runtime filesystem, which
+serverless functions don't provide. No amount of code change fixes this —
+it's a platform mismatch, not a bug.
+
+**Render.com** runs this as a normal long-lived web service (not a
+serverless function), so Tesseract and file storage both work as expected.
+It has a free tier and a `render.yaml` (Docker-based) is already included.
+
+1. Push this repo to GitHub
+2. Go to [render.com](https://render.com) → **New +** → **Web Service** →
+   connect your GitHub repo
+3. Render auto-detects `render.yaml` / the `Dockerfile` — leave the defaults
+   ("Docker" environment) and click **Create Web Service**. Do **not** switch
+   it to a native "Python 3" environment — that skips the Dockerfile and
+   `apt-get` won't be available to install Tesseract.
+4. Wait for the build (~2-3 min the first time), then open the given
+   `*.onrender.com` URL
+
+**Notes on the free tier:**
+- Disk is not persistent across redeploys/restarts — scan history, uploaded
+  photos, and generated PDFs reset each time the service restarts. Fine for
+  a hackathon demo; for real persistence, attach a Render Disk (paid) or move
+  to Postgres + object storage.
+- The service **sleeps after 15 minutes of inactivity**. The first request
+  after sleeping can take 30-50 seconds just to wake up — that's Render's
+  free-tier policy, not a bug in this app. Open the site a couple of minutes
+  before a demo/judging session to "warm it up".
+
+## How this differs from existing label-compliance tools
+
+A competitive review of existing Indian packaged-commodity compliance tools
+(PackCheck, Product Label Guru, ManageArtworks/ComplAi, Artwork Flow, and the
+official LMPC registration portal) surfaced several recurring gaps that this
+prototype specifically targets:
+
+| Gap in existing tools | This prototype |
+|---|---|
+| Most are **artwork-first** — they expect a print-ready PDF, not a photo of a physical product on a shelf | **Product-first**: built around a field officer photographing an actual package, including multiple sides in one scan |
+| No stated support for **Hindi/regional-language** labels | OCR runs in **English + Hindi combined** (`eng+hin`), since many Indian labels carry bilingual declarations |
+| Rule coverage is generally uniform, without accounting for **category-specific conditions** (e.g. imported-product-only requirements) | The rule engine supports **conditional requirements** — e.g. Country of Origin is only mandatory when the label indicates the product is imported, and the engine detects that automatically |
+| "Pass" results are often presented without distinguishing confident vs. uncertain reads, risking silent over-trust | Every OCR read tracks a confidence score, and every fuzzy-matched field is explicitly flagged **`[Verify]`** for manual confirmation rather than presented as certain |
+| No mention of an exportable **audit trail** for enforcement record-keeping | Dashboard includes a **CSV audit-trail export** of all past scans |
+
+This is still a prototype, not a finished product — it does not yet handle
+curved-bottle perspective correction, barcode/product-database matching, or
+offline mobile capture, which are genuine open problems even for the
+commercial tools reviewed above.
+
+## Research basis for key design decisions
+
+This prototype's design was informed by reviewing recent literature on
+OCR-based label/document extraction, and 3 concrete limitations were
+identified and addressed:
+
+| # | Limitation found in literature | How it's addressed here |
+|---|---|---|
+| 1 | Rule-based/regex OCR-text matching is brittle to real-world OCR noise (typos, merged words, misread characters) — noted as a core limitation of conventional OCR pipelines in *"Information Extraction from Product Labels: A Machine Vision Approach"* (IJAIA, 2024) | `rules_engine/engine.py` tries a strict regex first, then falls back to **fuzzy keyword-anchor matching** (`difflib.SequenceMatcher`, similar to the approach in Hamdi et al.'s OCR post-correction work and the "iOCR" ballot-recognition paper) before finally accepting a field as missing. Fuzzy matches are labelled `[Verify]` in the report/PDF rather than treated as identical to an exact match. |
+| 2 | OCR accuracy degrades sharply on busy backgrounds, glossy packaging, and varying fonts, requiring adaptive/multi-strategy preprocessing (CRNN OCR paper, IEEE 2023; automotive-parts OCR study, Springer 2024/25) | `ocr/extractor.py` tries multiple thresholding strategies (Otsu, adaptive, CLAHE) per photo and keeps whichever gives the highest Tesseract confidence, escalating only when needed (for speed). |
+| 3 | Systems that don't quantify OCR/match confidence risk silently trusting bad reads — addressed via confidence-threshold-based rejection in *"Product verification using OCR classification and Mondrian conformal prediction"* (2021) | Each photo's OCR confidence is tracked; a **low-confidence warning banner** appears on the report when a photo was hard to read, and every fuzzy-matched field is flagged for manual verification rather than presented as a certain result. |
+
+## Project structure
+
+```
+app.py                     Flask entry point — wires OCR, rules, DB, reports together
+ocr/extractor.py           Image → text + word bounding boxes (OpenCV + Tesseract),
+                            multi-strategy preprocessing, timeout-protected
+rules_engine/
+  engine.py                 Exact-then-fuzzy rule matching against the OCR result
+  rules.json                Declarative list of Legal Metrology rules
+database/db.py             SQLite persistence for scan history
+reports/
+  annotate.py                Draws pass/fail boxes on the original photos
+  generator.py                Builds the downloadable PDF (officer inspection-report format)
+templates/                 Jinja2 HTML pages (upload, report, dashboard, rules)
+static/                    CSS, JS, and generated annotated images
+uploads/                   Uploaded photos are saved here (gitignored)
+generated_reports/         Generated PDFs are saved here (gitignored)
+```
+
+## Language support
+
+OCR runs with both English and Hindi (`eng+hin`) trained data simultaneously,
+since Indian packaging is frequently bilingual. If the Hindi language pack is
+ever missing from the deployment environment for any reason, the system
+automatically falls back to English-only OCR rather than failing the scan —
+see `_run_tesseract()` in `ocr/extractor.py`. The `Dockerfile` installs the
+Hindi pack (`tesseract-ocr-hin`) by default.
+
+## Notes on OCR accuracy
+
+- Best results come from **clear, well-lit, straight-on photos** — especially
+  of the **back panel**, where most mandatory declarations (MRP, mfg date,
+  address, ingredients) actually live. Front panels are mostly branding/
+  graphics and often don't carry these declarations at all.
+- The system tries multiple preprocessing strategies per photo automatically
+  and picks whichever gives the highest OCR confidence, and falls back to
+  fuzzy keyword matching when the exact text doesn't line up (see table
+  above) — but it cannot invent text that was never legible in the photo.
+- If a photo is too blurry, at too sharp an angle, or has heavy glare, the
+  report shows an **"OCR quality warning"** banner — treat FAIL results
+  on that report with caution and consider re-scanning with a better photo.
+- Fields matched via fuzzy matching are marked `[Verify]` / shown with a
+  "verify" tag — these should be visually double-checked against the photo,
+  since they were recovered from imperfect OCR text rather than an exact
+  read.
+
+## PDF report format
+
+The downloadable PDF (`reports/generator.py`) is laid out like a field
+inspection report rather than a generic printout: report number, inspecting
+officer / premises fields (left blank for the officer to fill in by hand),
+an overall finding banner, a rule-reference checklist table, and signature
+blocks for the officer and the trader — matching the structure of the
+paperwork officers already use during physical inspections, so this can
+slot into existing workflows rather than requiring a new format.
 
 ## Disclaimer
 
-This is a hackathon prototype. Fuzzy-matched fields are approximate and
-flagged as such (`[Verify]` tag). This tool supplements, and does not
-replace, manual verification by an authorised Legal Metrology Officer.
+This is a hackathon prototype. The font-size/readability check is a
+pixel-ratio heuristic, not a calibrated physical measurement. Fuzzy-matched
+fields are approximate and flagged as such. This tool supplements, and does
+not replace, manual verification by an authorised Legal Metrology Officer.

@@ -1,0 +1,63 @@
+{% extends "base.html" %}
+{% block title %}Scan a Product Label{% endblock %}
+
+{% block content %}
+<section class="hero">
+    <span class="eyebrow">Legal Metrology (Packaged Commodities) Rules, 2011</span>
+    <h1>Scan a label. Know instantly if it complies.</h1>
+    <p class="hero-sub">Upload photos of the product's different sides — front, back, ingredients panel, MRP sticker — the system extracts every mandatory declaration across all of them and checks it against the rulebook in seconds.</p>
+</section>
+
+<section class="stats-strip">
+    <div class="stat-card">
+        <span class="stat-num">{{ stats.total_scans }}</span>
+        <span class="stat-label">Products scanned</span>
+    </div>
+    <div class="stat-card stat-good">
+        <span class="stat-num">{{ stats.compliant }}</span>
+        <span class="stat-label">Compliant</span>
+    </div>
+    <div class="stat-card stat-bad">
+        <span class="stat-num">{{ stats.non_compliant }}</span>
+        <span class="stat-label">Non-compliant</span>
+    </div>
+    <div class="stat-card">
+        <span class="stat-num">{{ stats.avg_score }}%</span>
+        <span class="stat-label">Avg. compliance score</span>
+    </div>
+</section>
+
+<section class="upload-card">
+    <form action="{{ url_for('scan') }}" method="POST" enctype="multipart/form-data" id="scan-form">
+        <label class="field-label" for="product_name">Product name</label>
+        <input type="text" id="product_name" name="product_name" placeholder="e.g. Sunrise Basmati Rice 1kg" required>
+
+        <label class="field-label" for="label_images">Label photos — front, back, other sides</label>
+        <div class="dropzone" id="dropzone">
+            <input type="file" id="label_images" name="label_images" accept=".png,.jpg,.jpeg,.webp" multiple hidden>
+            <div id="dropzone-empty">
+                <span class="dropzone-icon">⬆</span>
+                <p>Click to choose images, or drag them here</p>
+                <p class="dropzone-hint">Upload multiple sides of the same product (up to 6) — PNG, JPG or WEBP, clear well-lit photos work best</p>
+            </div>
+            <div id="preview-grid" class="preview-grid" style="display:none;"></div>
+        </div>
+
+        <button type="submit" class="btn-primary" id="submit-btn">
+            <span id="btn-text">Run Compliance Check</span>
+        </button>
+    </form>
+</section>
+
+<section class="how-it-works">
+    <h2>What happens when you scan</h2>
+    <div class="steps-row">
+        <div class="step-item"><span class="step-num">1</span><p>OCR extracts every word and its position from each side-photo</p></div>
+        <div class="step-item"><span class="step-num">2</span><p>NLP pulls out MRP, net quantity, mfg date, address &amp; more, across all sides</p></div>
+        <div class="step-item"><span class="step-num">3</span><p>Rule engine checks each field against Legal Metrology Rules 2011</p></div>
+        <div class="step-item"><span class="step-num">4</span><p>You get a scored report with a downloadable PDF</p></div>
+    </div>
+</section>
+
+<script src="{{ url_for('static', filename='script.js') }}"></script>
+{% endblock %}

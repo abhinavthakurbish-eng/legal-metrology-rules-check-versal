@@ -1,0 +1,32 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>{% block title %}Legal Metrology Compliance Checker{% endblock %}</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+</head>
+<body>
+    <nav class="navbar">
+        <div class="nav-inner">
+            <a href="{{ url_for('home') }}" class="brand">
+                <span class="brand-mark">LM</span>
+                <span class="brand-text">Compliance Checker</span>
+            </a>
+            <div class="nav-links">
+                <a href="{{ url_for('home') }}">Scan Product</a>
+                <a href="{{ url_for('dashboard') }}">Dashboard</a>
+                <a href="{{ url_for('view_rules') }}">Rules Engine</a>
+            </div>
+        </div>
+    </nav>
+
+    <main class="page">
+        {% block content %}{% endblock %}
+    </main>
+
+    <footer class="site-footer">
+        <p>Prototype for SIH — Problem Statement 26034 — Ministry of Consumer Affairs, Food &amp; Public Distribution</p>
+    </footer>
+</body>
+</html>

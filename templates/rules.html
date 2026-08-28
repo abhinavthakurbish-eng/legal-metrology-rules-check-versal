@@ -1,0 +1,28 @@
+{% extends "base.html" %}
+{% block title %}Compliance Rules{% endblock %}
+
+{% block content %}
+<section class="dashboard-header">
+    <h1>Active Compliance Rules</h1>
+    <p>Every declaration this system checks for, sourced from the Legal Metrology (Packaged Commodities) Rules, 2011. Rules live in a single <code>rules.json</code> config file — add or edit a rule without touching any code.</p>
+</section>
+
+<section class="rules-list">
+    {% for rule in rules %}
+    <div class="rule-card">
+        <div class="rule-card-top">
+            <span class="rule-id-badge">{{ rule.id }}</span>
+            <h3>{{ rule.label }}</h3>
+            <span class="severity-tag severity-{{ rule.severity }}">{{ rule.severity }}</span>
+            {% if not rule.required %}<span class="optional-tag">optional</span>{% endif %}
+        </div>
+        <p>{{ rule.description }}</p>
+        {% if rule.keywords %}
+        <div class="keywords-row">
+            {% for k in rule.keywords %}<span class="keyword-chip">{{ k }}</span>{% endfor %}
+        </div>
+        {% endif %}
+    </div>
+    {% endfor %}
+</section>
+{% endblock %}

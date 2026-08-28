@@ -1,0 +1,97 @@
+{% extends "base.html" %}
+{% block title %}Report — {{ scan.product_name }}{% endblock %}
+
+{% block content %}
+<section class="report-header">
+    <div>
+        <span class="eyebrow">Report SCAN-{{ "%05d"|format(scan.id) }}</span>
+        <h1>{{ scan.product_name }}</h1>
+        <p class="report-date">Scanned on {{ scan.created_at }}</p>
+    </div>
+    <div class="status-badge {{ 'badge-good' if compliance.overall_status == 'COMPLIANT' else 'badge-bad' }}">
+        {{ compliance.overall_status }}
+    </div>
+</section>
+
+<!-- Plain-language verdict - taaki ek nazar mein pata chal jaaye report padhe bina -->
+<section class="verdict-banner {{ 'verdict-good' if compliance.overall_status == 'COMPLIANT' else 'verdict-bad' }}">
+    {% if compliance.overall_status == 'COMPLIANT' %}
+        ✅ <strong>Is product ki packaging saari mandatory declarations ke saath compliant dikh rahi hai.</strong>
+        Sab {{ compliance.total_rules }} zaroori checks mein se {{ compliance.passed }} pass hui hain.
+    {% else %}
+        ⚠️ <strong>Is product mein {{ compliance.failed }} zaroori declaration{{ 's' if compliance.failed != 1 else '' }} missing ya galat format mein mil{{ 'i' if compliance.failed == 1 else 'e' }} hai.</strong>
+        Neeche "Failed" wale rows dekho ki kya theek karna hai.
+    {% endif %}
+</section>
+
+{% if ocr_low_confidence %}
+<section class="ocr-warning-banner">
+    ⚠️ <strong>Photo quality warning:</strong> Kuch photos se text padhna mushkil raha (glare, blur, ya kam resolution ho sakti hai).
+    Neeche "Failed" results in photos ki quality ki wajah se ho sakte hain, zaroori nahi ki label mein asli kami ho.
+    Behtar lighting mein, seedha upar se, aur back panel (jahan MRP/mfg date/ingredients hoti hain) ki clear photo lekar dobara try karo.
+</section>
+{% endif %}
+
+{% if compliance.fuzzy_matches and compliance.fuzzy_matches > 0 %}
+<section class="fuzzy-notice-banner">
+    ℹ️ {{ compliance.fuzzy_matches }} declaration{{ 's' if compliance.fuzzy_matches != 1 else '' }} photo mein thodi si OCR noise ke saath mili
+    (isliye approximate match use hua) — neeche in rows par <span class="tag tag-fuzzy">verify</span> label dikhega, ek baar photo se khud confirm kar lena.
+</section>
+{% endif %}
+
+<section class="score-strip">
+    <div class="score-circle {{ 'good' if compliance.compliance_score >= 80 else ('mid' if compliance.compliance_score >= 50 else 'bad') }}">
+        <span>{{ compliance.compliance_score }}%</span>
+    </div>
+    <div class="score-breakdown">
+        <div><span class="dot dot-pass"></span> {{ compliance.passed }} Passed</div>
+        <div><span class="dot dot-warn"></span> {{ compliance.warnings }} Warnings</div>
+        <div><span class="dot dot-fail"></span> {{ compliance.failed }} Failed</div>
+        <div class="total-rules">out of {{ compliance.total_rules }} rules checked, across {{ images|length }} photo{{ 's' if images|length != 1 else '' }}</div>
+    </div>
+    <a href="{{ url_for('download_pdf', scan_id=scan.id) }}" class="btn-secondary">⬇ Download Official Report (PDF)</a>
+</section>
+
+<section class="report-body">
+    <div class="image-panel">
+        <h3>Scanned Label Photos</h3>
+        <div class="image-gallery">
+            {% for img in images %}
+            <div class="image-gallery-item">
+                <p class="image-gallery-caption">Side {{ img.side_num }} {% if img.annotated %}<span class="tag">annotated</span>{% endif %}</p>
+                <img src="{{ url_for('static', filename='annotated/' ~ img.filename) if img.annotated else url_for('serve_upload', filename=img.filename) }}" alt="Label side {{ img.side_num }}" class="label-image">
+            </div>
+            {% endfor %}
+        </div>
+        <p class="legend"><span class="dot dot-pass"></span> Detected &amp; valid &nbsp;&nbsp; <span class="dot dot-fail"></span> Missing / invalid</p>
+    </div>
+
+    <div class="results-panel">
+        <h3>Rule-by-Rule Results</h3>
+        {% for r in compliance.results %}
+        <div class="rule-row rule-{{ r.status|lower }}">
+            <div class="rule-row-top">
+                <span class="rule-status-icon">
+                    {% if r.status == 'PASS' %}✓{% elif r.status == 'FAIL' %}✕{% else %}!{% endif %}
+                </span>
+                <span class="rule-label">{{ r.label }}</span>
+                {% if r.matched_via == 'fuzzy' %}<span class="tag tag-fuzzy">verify</span>{% endif %}
+                <span class="rule-id">{{ r.rule_id }}</span>
+            </div>
+            <p class="rule-reason">{{ r.reason }}</p>
+            {% if r.extracted_value %}
+            <p class="rule-extracted">Extracted: <code>{{ r.extracted_value }}</code></p>
+            {% endif %}
+            {% if r.bbox and r.bbox.image_index is not none %}
+            <p class="rule-extracted">Found on: <code>Side {{ r.bbox.image_index + 1 }}</code></p>
+            {% endif %}
+        </div>
+        {% endfor %}
+    </div>
+</section>
+
+<div class="report-actions">
+    <a href="{{ url_for('home') }}" class="btn-secondary">Scan another product</a>
+    <a href="{{ url_for('dashboard') }}" class="btn-secondary">View all scans</a>
+</div>
+{% endblock %}

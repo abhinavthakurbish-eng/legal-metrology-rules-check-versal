@@ -1,0 +1,9 @@
+services:
+  - type: web
+    name: legal-metrology-checker
+    runtime: docker
+    plan: free
+    dockerfilePath: ./Dockerfile
+    # Dockerfile already installs tesseract-ocr and starts gunicorn (see CMD
+    # in Dockerfile) - no buildCommand/startCommand needed here, Render uses
+    # the Dockerfile automatically when runtime is "docker".

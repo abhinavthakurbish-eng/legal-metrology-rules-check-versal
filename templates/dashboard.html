@@ -1,0 +1,70 @@
+{% extends "base.html" %}
+{% block title %}Enforcement Dashboard{% endblock %}
+
+{% block content %}
+<section class="dashboard-header">
+    <div class="dashboard-header-row">
+        <div>
+            <h1>Enforcement Dashboard</h1>
+            <p>All scanned products and their compliance history.</p>
+        </div>
+        <a href="{{ url_for('export_audit_trail') }}" class="btn-secondary">⬇ Export Audit Trail (CSV)</a>
+    </div>
+</section>
+
+<section class="stats-strip">
+    <div class="stat-card"><span class="stat-num">{{ stats.total_scans }}</span><span class="stat-label">Total scans</span></div>
+    <div class="stat-card stat-good"><span class="stat-num">{{ stats.compliant }}</span><span class="stat-label">Compliant</span></div>
+    <div class="stat-card stat-bad"><span class="stat-num">{{ stats.non_compliant }}</span><span class="stat-label">Non-compliant</span></div>
+    <div class="stat-card"><span class="stat-num">{{ stats.avg_score }}%</span><span class="stat-label">Avg. score</span></div>
+</section>
+
+<section class="filter-bar">
+    <form method="GET" action="{{ url_for('dashboard') }}" class="filter-form">
+        <input type="text" name="q" placeholder="Search by product name..." value="{{ search_query }}">
+        <select name="status">
+            <option value="all" {{ 'selected' if status_filter == 'all' }}>All statuses</option>
+            <option value="COMPLIANT" {{ 'selected' if status_filter == 'COMPLIANT' }}>Compliant only</option>
+            <option value="NON-COMPLIANT" {{ 'selected' if status_filter == 'NON-COMPLIANT' }}>Non-compliant only</option>
+        </select>
+        <button type="submit" class="btn-primary btn-small">Filter</button>
+    </form>
+</section>
+
+<section class="scans-table-wrap">
+    {% if scans %}
+    <table class="scans-table">
+        <thead>
+            <tr>
+                <th>Product</th>
+                <th>Scanned on</th>
+                <th>Score</th>
+                <th>Status</th>
+                <th></th>
+            </tr>
+        </thead>
+        <tbody>
+            {% for s in scans %}
+            <tr>
+                <td>{{ s.product_name }}</td>
+                <td>{{ s.created_at }}</td>
+                <td>
+                    <div class="mini-bar">
+                        <div class="mini-bar-fill" style="width: {{ s.compliance_score }}%"></div>
+                    </div>
+                    {{ s.compliance_score }}%
+                </td>
+                <td><span class="status-pill {{ 'pill-good' if s.overall_status == 'COMPLIANT' else 'pill-bad' }}">{{ s.overall_status }}</span></td>
+                <td><a href="{{ url_for('view_report', scan_id=s.id) }}" class="link-view">View report →</a></td>
+            </tr>
+            {% endfor %}
+        </tbody>
+    </table>
+    {% else %}
+    <div class="empty-state">
+        <p>No scans yet{% if search_query %} matching "{{ search_query }}"{% endif %}.</p>
+        <a href="{{ url_for('home') }}" class="btn-primary btn-small">Scan your first product</a>
+    </div>
+    {% endif %}
+</section>
+{% endblock %}
