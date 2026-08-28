@@ -1,0 +1,85 @@
+{
+  "_comment": "Yeh file Legal Metrology (Packaged Commodities) Rules, 2011 ke mandatory declarations ko 'rules' ke roop mein define karti hai. Naya rule add karna ho toh bas neeche ek naya object add kar do - code change nahi karna padega. 'regex' field ek strict/fast pehla-attempt match hai (jab OCR clean ho). 'value_regex' field un cases ke liye hai jab OCR ne keyword ke ird-gird kuch noise/typo daal diya ho (jaise 'MRP' ko 'MRPs' padh liya) - engine pehle keyword ko FUZZY match se dhoondta hai (chhoti spelling mistakes allow karte hue), phir uske aas-paas 'value_regex' se asli value nikalta hai. Yeh approach OCR-noise-tolerant hai (dekho rules_engine/engine.py ke comments mein iske peeche ki research).",
+
+  "rules": [
+    {
+      "id": "R001",
+      "field": "manufacturer_address",
+      "label": "Manufacturer / Packer / Importer Name & Address",
+      "description": "Label par manufacturer ya packer ya importer ka naam aur poora address hona chahiye.",
+      "keywords": ["manufactured by", "packed by", "marketed by", "mfg by", "mfd by", "mktd by", "imported by"],
+      "regex": "(manufactured|manufacturer|packed|packer|marketed|marketer|mfg|mfd|mktd|imported|importer)\\.?\\s*by[:\\s]*([A-Za-z0-9,.\\-/&\\s]{8,150})",
+      "value_regex": "([A-Za-z0-9,.\\-/&\\s]{8,150})",
+      "required": true,
+      "severity": "high"
+    },
+    {
+      "id": "R002",
+      "field": "net_quantity",
+      "label": "Net Quantity",
+      "description": "Product ki net quantity standard unit (g, kg, ml, l, ya count) mein clearly likhi honi chahiye.",
+      "keywords": ["net qty", "net quantity", "net wt", "net weight", "net vol", "net volume"],
+      "regex": "\\bnet[a-z .:\\-]{0,15}([0-9]+\\.?[0-9]*)\\s*(g|gm|gms|kg|ml|l|litre|liter|pcs|pieces|n|no\\.?)",
+      "value_regex": "([0-9]+\\.?[0-9]*)\\s*(g|gm|gms|kg|ml|l|litre|liter|pcs|pieces|n|no\\.?)",
+      "required": true,
+      "severity": "high"
+    },
+    {
+      "id": "R003",
+      "field": "mrp",
+      "label": "Maximum Retail Price (MRP)",
+      "description": "MRP 'inclusive of all taxes' ke saath currency symbol (Rs./\u20b9) mein likhi honi chahiye.",
+      "_note": "regex mein 'mbp'/'mnp'/'mrrp' bhi shamil hain kyunki OCR aksar 'MRP' ko in tarah galat padhta hai (R/B jaise letters kai fonts mein ek jaisi dikhte hain) - 'mrp' khud itna chhota keyword hai ki fuzzy-matching safety-filter (MIN_KEYWORD_LENGTH_FOR_FUZZY) use skip kar deta, isliye known confusions ko seedha regex mein daala hai.",
+      "keywords": ["mrp", "maximum retail price", "m.r.p"],
+      "regex": "\\b(m\\.?\\s?r\\.?\\s?p\\.?|mbp|mnp|mrrp|maximum retail price)[^0-9]{0,15}([0-9]+[.,]?[0-9]*)",
+      "value_regex": "([0-9]+[.,]?[0-9]*)",
+      "required": true,
+      "severity": "high"
+    },
+    {
+      "id": "R004",
+      "field": "mfg_date",
+      "label": "Month & Year of Manufacture/Packing/Import",
+      "description": "Manufacturing ya packing ya import ka month aur year clearly likha hona chahiye (MM/YYYY ya Month YYYY format mein).",
+      "keywords": ["mfg date", "mfd", "pkd on", "manufacturing date", "date of manufacture", "packed on"],
+      "regex": "(mfg|mfd|pkd|packed|manufactur\\w*)[a-z .:]{0,15}([0-9]{1,2}[/\\-][0-9]{2,4}|[a-z]{3,9}\\s?[0-9]{4})",
+      "value_regex": "([0-9]{1,2}[/\\-][0-9]{2,4}|[a-z]{3,9}\\s?[0-9]{4})",
+      "required": true,
+      "severity": "high"
+    },
+    {
+      "id": "R005",
+      "field": "consumer_care",
+      "label": "Consumer Care Details",
+      "description": "Consumer care ka phone number ya email address label par hona chahiye taaki customer complaint kar sake.",
+      "keywords": ["customer care", "consumer care", "toll free", "helpline", "consumer complaint", "customer support", "grievance", "contact us", "care line"],
+      "regex": "(customer\\s?care|consumer\\s?care|toll\\s?free|helpline|consumer\\s?complaint\\w*|customer\\s?support|grievance\\w*|contact\\s?us|care\\s?line)[a-z .:\\-]{0,15}([0-9\\-+\\s]{8,15}|[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+)",
+      "value_regex": "([0-9\\-+\\s]{8,15}|[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+)",
+      "required": true,
+      "severity": "medium"
+    },
+    {
+      "id": "R006",
+      "field": "country_of_origin",
+      "label": "Country of Origin",
+      "description": "Agar product imported hai toh country of origin batana mandatory hai.",
+      "keywords": ["country of origin", "made in", "product of"],
+      "regex": "(country of origin|made in|product of)[:\\s]*([a-zA-Z\\s]{3,30})",
+      "value_regex": "([a-zA-Z\\s]{3,30})",
+      "required": false,
+      "becomes_required_if_keywords_present": ["imported by"],
+      "_note": "Yeh rule khud toh optional hai (sab products ke liye mandatory nahi), LEKIN agar label pe 'imported by' mila (matlab yeh ek imported product hai), toh Country of Origin declare karna Legal Metrology Rules ke hisaab se mandatory ho jaata hai - engine.py isko dynamically upgrade karta hai (category-aware rule, static 'required: false' nahi rehta).",
+      "severity": "low"
+    },
+    {
+      "id": "R007",
+      "field": "font_size",
+      "label": "Minimum Font Size / Readability",
+      "description": "Declarations ka font size legal minimum se chota nahi hona chahiye taaki normal vision wala consumer bina magnifying glass ke padh sake. NOTE: Bina physical reference scale (jaise ek known-size object image mein) ke, pixel se real-world mm nikalna approximate hi hota hai - yeh ek heuristic check hai, legal proof nahi.",
+      "min_text_height_ratio": 0.012,
+      "required": false,
+      "_note": "required:false rakha hai jaan-boojh kar - yeh check photo ke distance/framing par bahut depend karta hai (poora product photo vs sirf label ka close-up), aur khud description mein likha hai ki yeh sirf heuristic hai, legal proof nahi. Isko hard 'required' banane se normal camera photos (jisme poora product photograph hota hai, sirf text zoom nahi) galat FAIL de sakti thi.",
+      "severity": "medium"
+    }
+  ]
+}
